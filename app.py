@@ -24,18 +24,18 @@ if st.button("Process Data", type="primary"):
             if room_match:
                 room_num = room_match.group(1)
                 room_type = room_match.group(2)
-
+                
                 name = "N/A"
                 for j in range(max(0, i - 4), i):
                     line = lines[j]
                     if not re.search(r'^\d+$', line) and '/' not in line and line not in ["New Guest", "No Allotment Block"]:
                         name = line
-
+                
                 pax = "N/A"
                 for k in range(i + 1, min(len(lines), i + 6)):
                     if lines[k].isdigit() and int(lines[k]) < 10:
                         pax = lines[k]
-
+                
                 records.append({
                     "Sr. No.": sr_no,
                     "Name of the Guest": name,
@@ -58,15 +58,15 @@ if st.button("Process Data", type="primary"):
             pdf.set_font("Arial", size=12)
             pdf.cell(200, 10, txt="Riviera Dashboard - Guest Summary", ln=True, align='C')
             pdf.ln(10)
-
+            
             col_widths = [15, 50, 25, 65, 25]
             headers = ["Sr.", "Name", "Room", "Room Type", "Pax"]
-
+            
             pdf.set_font("Arial", 'B', 10)
             for idx, h in enumerate(headers):
                 pdf.cell(col_widths[idx], 10, h, border=1, align='C')
             pdf.ln()
-
+            
             pdf.set_font("Arial", size=9)
             for _, row in df.iterrows():
                 pdf.cell(col_widths[0], 10, str(row["Sr. No."]), border=1, align='C')
@@ -75,8 +75,9 @@ if st.button("Process Data", type="primary"):
                 pdf.cell(col_widths[3], 10, str(row["Type of Room"]), border=1)
                 pdf.cell(col_widths[4], 10, str(row["Number of Pax"]), border=1, align='C')
                 pdf.ln()
-
-            pdf_bytes = pdf.output(dest='S').encode('latin1')
+                
+            # Fixed output for modern fpdf2 library
+            pdf_bytes = bytes(pdf.output())
 
             st.download_button(
                 label="Yes (Download PDF)",
