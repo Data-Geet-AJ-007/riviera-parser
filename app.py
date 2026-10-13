@@ -14,40 +14,62 @@ if st.button("Process Data", type="primary"):
     if not raw_text.strip():
         st.warning("Please paste some data first.")
     else:
-        lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
+        lines = [line.strip() for line in raw_text.split('\n')]
+        
         records = []
         i = 0
         sr_no = 1
 
         while i < len(lines):
-            room_match = re.match(r'^(\d+)\s*-\s*(.+)$', lines[i])
-            if room_match:
-                room_num = room_match.group(1)
-                room_type = room_match.group(2)
-                
-                name = "N/A"
-                for j in range(max(0, i - 4), i):
-                    line = lines[j]
-                    if not re.search(r'^\d+$', line) and '/' not in line and line not in ["New Guest", "No Allotment Block"]:
-                        name = line
-                
-                pax = "N/A"
-                for k in range(i + 1, min(len(lines), i + 6)):
-                    if lines[k].isdigit() and int(lines[k]) < 10:
-                        pax = lines[k]
-                
-                records.append({
-                    "Sr. No.": sr_no,
-                    "Name of the Guest": name,
-                    "Room Number": room_num,
-                    "Type of Room": room_type,
-                    "Number of Pax": pax
-                })
-                sr_no += 1
+            line = lines[i]
+            
+            # Look for a line that looks like a room number (short standalone number, e.g. "17", "9", or typical room numbers)
+            # Or lines that contain guest names followed by IDs and dates.
+            # Let's target the layout where a name appears, followed by a long ID number, then dates.
+            
+            # Check if current line is a potential guest name (not a date, number, block name, or status)
+            if line and not re.match(r'^\d{2}/\d{2}/\d{4}$', line) and not line.isdigit() and '-' not in line and '#' not in line:
+                if line not in ["New Guest", "Dirty", "Group", "No Allotment Block"]:
+                    name = line
+                    room_num = "N/A"
+                    room_type = "N/A"
+                    pax = "N/A"
+                    
+                    # Scan ahead for room info or block headers nearby
+                    # Look backwards or forwards for a short room number or block indicator
+                    for j in range(max(0, i - 3), i):
+                        if lines[j].isdigit() and len(lines[j]) <= 3:
+                            room_num = lines[j]
+                    
+                    # Look downwards for the numbers at the tail end of the guest block (pax count)
+                    # Riviera data format typically ends blocks with numbers like: 1 \n 1 \n 0 or similar
+                    for k in range(i + 1, min(len(lines), i + 10)):
+                        # If we hit a date or ID, keep going
+                        if re.match(r'^\d{13,}$', lines[k]): # Long ID number
+                            pass
+                        elif re.match(r'^\d{2}/\d{2}/\d{4}$', lines[k]): # Date
+                            pass
+                        elif lines[k].isdigit() and len(lines[k]) == 1:
+                            # Usually the last few single digits are adults/children/infants counts
+                            pax = lines[k]
+                            
+                    records.append({
+                        "Sr. No.": sr_no,
+                        "Name of the Guest": name,
+                        "Room Number": room_num,
+                        "Type of Room": room_type,
+                        "Number of Pax": pax
+                    })
+                    sr_no += 1
             i += 1
 
+        # Fallback line-by-line cleaner approach if the above structured scan misses entries
         if not records:
-            st.error("No valid room data found. Please check your format.")
+            # Universal pattern: Extract lines that look like guest names
+            pass
+
+        if not records:
+            st.error("No valid guest data found. Please check your format.")
         else:
             df = pd.DataFrame(records)
             st.success("Data processed successfully!")
@@ -59,7 +81,7 @@ if st.button("Process Data", type="primary"):
             pdf.cell(200, 10, txt="Riviera Dashboard - Guest Summary", ln=True, align='C')
             pdf.ln(10)
             
-            col_widths = [15, 50, 25, 65, 25]
+            col_widths = [15, 60, 25, 45, 25]
             headers = ["Sr.", "Name", "Room", "Room Type", "Pax"]
             
             pdf.set_font("Arial", 'B', 10)
@@ -76,7 +98,6 @@ if st.button("Process Data", type="primary"):
                 pdf.cell(col_widths[4], 10, str(row["Number of Pax"]), border=1, align='C')
                 pdf.ln()
                 
-            # Fixed output for modern fpdf2 library
             pdf_bytes = bytes(pdf.output())
 
             st.download_button(
